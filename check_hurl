@@ -1,38 +1,59 @@
-#!/bin/bash
+#!/usr/bin/env python3
 
-EXIT_OK=0
-EXIT_ERROR_COMMANDLINE=1
-EXIT_ERROR_PARSING=2
-EXIT_ERROR_RUNTIME=3
-EXIT_ERROR_ASSERT=4
-EXIT_ERROR_UNDEFINED=127
+import json
+import subprocess
+import sys
 
-OUT=$( hurl --test "$@" 2>&1 )
-RC=$?
 
-case "$RC" in
-    $EXIT_OK) echo "OK - all tests ok"
-       printf '%s\n' "$OUT" | tr -d '|'
-       exit 0
-       ;;
-    $EXIT_ERROR_COMMANDLINE) echo "UNKNOWN - error on the command line"
-       printf '%s\n' "$OUT" | tr -d '|'
-       exit 3
-       ;;
-    $EXIT_ERROR_PARSING) echo "UNKNOWN - error parsing hurl file"
-       printf '%s\n' "$OUT" | tr -d '|'
-       exit 3
-       ;;
-    $EXIT_ERROR_RUNTIME) echo "UNKNOWN - runtime error"
-       printf '%s\n' "$OUT" | tr -d '|'
-       exit 3
-       ;;
-    $EXIT_ERROR_ASSERT) echo "CRITICAL - assertion failed"
-       printf '%s\n' "$OUT" | tr -d '|'
-       exit 2
-       ;;
-    *) echo  "UNKNOWN - undefined error occured"
-       printf '%s\n' "$OUT" | tr -d '|'
-       exit 3
-       ;;
-esac
+class Hurl:
+    EXIT_OK = 0
+    EXIT_ERROR_COMMANDLINE = 1
+    EXIT_ERROR_PARSING = 2
+    EXIT_ERROR_RUNTIME = 3
+    EXIT_ERROR_ASSERT = 4
+    EXIT_ERROR_UNDEFINED = 127
+
+    def __init__(self, hurlfile):
+        self.hurlfile = hurlfile
+        self.lines = open(hurlfile).readlines()
+        self.json = None
+
+    def run(self):
+        cmd = ["hurl", "--json", self.hurlfile]
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        stdout, stderr = proc.communicate()
+        self.json = json.loads(stdout)
+        rc = proc.returncode
+
+        if rc == Hurl.EXIT_OK:
+            print("OK - All assertions passed in {}".format(self.hurlfile))
+            raise SystemExit(0)
+        elif rc == Hurl.EXIT_ERROR_COMMANDLINE:
+            print("UNKNOWN - Something wrong with the command line")
+            print(cmd)
+            raise SystemExit(3)
+        elif rc == Hurl.EXIT_ERROR_PARSING:
+            print("UNKNOWN - Something wrong parsing file")
+            print(stderr.decode("UTF-8"))
+            raise SystemExit(3)
+        elif rc == Hurl.EXIT_ERROR_RUNTIME:
+            print("UNKNOWN - Runtime error")
+            print(stderr.decode("UTF-8"))
+            raise SystemExit(3)
+        elif rc == Hurl.EXIT_ERROR_ASSERT:
+            self.handle_assertion_error()
+        else:
+            print(stderr.decode("UTF-8"))
+            print(proc.returncode)
+            raise SystemExit(3)
+
+    def handle_assertion_error(self):
+        # print(json.dumps(self.json, indent=2))
+        for entry in self.json.get("entries", []):
+            for a in entry.get("asserts", []):
+                print(self.lines[a["line"] - 1])
+
+        raise SystemExit(2)
+
+
+Hurl(sys.argv[1]).run()
