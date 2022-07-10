@@ -1,0 +1,38 @@
+#!/bin/bash
+
+EXIT_OK=0
+EXIT_ERROR_COMMANDLINE=1
+EXIT_ERROR_PARSING=2
+EXIT_ERROR_RUNTIME=3
+EXIT_ERROR_ASSERT=4
+EXIT_ERROR_UNDEFINED=127
+
+OUT=$( hurl --test "$@" 2>&1 )
+RC=$?
+
+case "$RC" in
+    $EXIT_OK) echo "OK - all tests ok"
+       printf '%s\n' "$OUT" | tr -d '|'
+       exit 0
+       ;;
+    $EXIT_ERROR_COMMANDLINE) echo "UNKNOWN - error on the command line"
+       printf '%s\n' "$OUT" | tr -d '|'
+       exit 3
+       ;;
+    $EXIT_ERROR_PARSING) echo "UNKNOWN - error parsing hurl file"
+       printf '%s\n' "$OUT" | tr -d '|'
+       exit 3
+       ;;
+    $EXIT_ERROR_RUNTIME) echo "UNKNOWN - runtime error"
+       printf '%s\n' "$OUT" | tr -d '|'
+       exit 3
+       ;;
+    $EXIT_ERROR_ASSERT) echo "CRITICAL - assertion failed"
+       printf '%s\n' "$OUT" | tr -d '|'
+       exit 2
+       ;;
+    *) echo  "UNKNOWN - undefined error occured"
+       printf '%s\n' "$OUT" | tr -d '|'
+       exit 3
+       ;;
+esac
