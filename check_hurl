@@ -3,20 +3,15 @@
 import json
 import subprocess
 import sys
+import re
 
 
 class Hurl:
-    EXIT_OK = 0
-    EXIT_ERROR_COMMANDLINE = 1
-    EXIT_ERROR_PARSING = 2
-    EXIT_ERROR_RUNTIME = 3
-    EXIT_ERROR_ASSERT = 4
-    EXIT_ERROR_UNDEFINED = 127
-
     def __init__(self, hurlfile):
         self.hurlfile = hurlfile
         self.lines = open(hurlfile).readlines()
         self.json = None
+        self.assert_status = 0
 
     def run(self):
         cmd = ["hurl", "--json", self.hurlfile]
@@ -41,19 +36,34 @@ class Hurl:
             print(stderr.decode("UTF-8"))
             raise SystemExit(3)
         elif rc == Hurl.EXIT_ERROR_ASSERT:
-            self.handle_assertion_error()
+            self._handle_assertion_error()
         else:
             print(stderr.decode("UTF-8"))
             print(proc.returncode)
             raise SystemExit(3)
 
-    def handle_assertion_error(self):
+    def _update_assert_status(self, status):
+        if status > self.assert_status:
+            self.assert_status = status
+
+    def _get_assert_criticality(self, line):
+        line = self.lines[ line - 1 ]
+        re.search(line, 
+
+    def _handle_assertion_error(self):
         # print(json.dumps(self.json, indent=2))
         for entry in self.json.get("entries", []):
             for a in entry.get("asserts", []):
                 print(self.lines[a["line"] - 1])
 
-        raise SystemExit(2)
+    EXIT_OK = 0
+    EXIT_ERROR_COMMANDLINE = 1
+    EXIT_ERROR_PARSING = 2
+    EXIT_ERROR_RUNTIME = 3
+    EXIT_ERROR_ASSERT = 4
+    EXIT_ERROR_UNDEFINED = 127
+
+    RE_CRITICALITY = r'#[^"]*CRITICALITY:(\w+)[^"]*$'
 
 
 Hurl(sys.argv[1]).run()
