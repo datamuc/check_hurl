@@ -4,6 +4,7 @@ import json
 import subprocess
 import sys
 import re
+from monplugin import Check, Status
 
 
 class Hurl:
@@ -12,49 +13,53 @@ class Hurl:
         self.lines = open(hurlfile).readlines()
         self.json = None
         self.assert_status = 0
+        self.check = Check("HURL")
 
     def run(self):
         cmd = ["hurl", "--json", self.hurlfile]
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         stdout, stderr = proc.communicate()
+        stderr = stderr.decode('utf-8')
         self.json = json.loads(stdout)
         rc = proc.returncode
 
         if rc == Hurl.EXIT_OK:
-            print("OK - All assertions passed in {}".format(self.hurlfile))
-            raise SystemExit(0)
+            self.check.exit(Status.OK, "All assertions passed in {}".format(self.hurlfile))
         elif rc == Hurl.EXIT_ERROR_COMMANDLINE:
-            print("UNKNOWN - Something wrong with the command line")
-            print(cmd)
-            raise SystemExit(3)
+            self.check.exit(Status.UNKNOWN, "\n".join(["Something wrong with the command line", cmd]))
         elif rc == Hurl.EXIT_ERROR_PARSING:
-            print("UNKNOWN - Something wrong parsing file")
-            print(stderr.decode("UTF-8"))
-            raise SystemExit(3)
+            self.check.exit(Status.UNKNOWN, "\n".join(["Something wrong parsing file", stderr]))
         elif rc == Hurl.EXIT_ERROR_RUNTIME:
-            print("UNKNOWN - Runtime error")
-            print(stderr.decode("UTF-8"))
-            raise SystemExit(3)
+            self.check.exit(Status.UNKNOWN, "\n".join(["Runtime error", stderr]))
         elif rc == Hurl.EXIT_ERROR_ASSERT:
-            self._handle_assertion_error()
+            self._handle_assertion_error(stderr)
         else:
-            print(stderr.decode("UTF-8"))
-            print(proc.returncode)
-            raise SystemExit(3)
+            self.check.exit(Status.UNKNOWN, "\n".join(["unknown error", stderr, str(proc.returncode)]))
 
     def _update_assert_status(self, status):
         if status > self.assert_status:
             self.assert_status = status
 
     def _get_assert_criticality(self, line):
-        line = self.lines[ line - 1 ]
-        re.search(line, 
+        line = self.lines[line - 1]
+        match = re.search('WARNING', line)  # FIXME
+        if match:
+            return Status.WARNING
+        else:
+            return Status.CRITICAL
 
-    def _handle_assertion_error(self):
-        # print(json.dumps(self.json, indent=2))
+    def _handle_assertion_error(self, stderr):
+        self.check.add_message(Status.OK, "")
+
         for entry in self.json.get("entries", []):
             for a in entry.get("asserts", []):
-                print(self.lines[a["line"] - 1])
+                severity = self._get_assert_criticality(a["line"])
+                if not a["success"]:
+                    self.check.add_message(severity, "")
+
+        severity = self.check.check_messages()[0]
+        if severity.value > 0:
+            self.check.exit(severity, f"Assertions failed in { self.hurlfile }\n" + stderr.replace('|', '#'))
 
     EXIT_OK = 0
     EXIT_ERROR_COMMANDLINE = 1
