@@ -37,10 +37,10 @@ class CheckHurl:
         elif rc == self.EXIT_ERROR_PARSING:
             check.exit(
                 Status.UNKNOWN,
-                "\n".join(["Something wrong parsing file", stderr.replace("|", "#")])
+                "\n".join(["Something wrong parsing file", stderr.replace("|", "\u2758")])
             )
         elif rc == self.EXIT_ERROR_RUNTIME:
-            check.exit(Status.UNKNOWN, "\n".join(["Runtime error", stderr.replace("|", "#")]))
+            check.exit(Status.UNKNOWN, "\n".join(["Runtime error", stderr.replace("|", "\u2758")]))
         elif rc == self.EXIT_ERROR_ASSERT:
             self.json = json.loads(stdout)
             self._handle_assertion_error(stderr)
@@ -77,7 +77,7 @@ class CheckHurl:
         if severity.value > 0:
             self.check.exit(
                 severity,
-                f"Assertions failed in { self.hurlfile }\n" + stderr.replace("|", "#"),
+                f"Assertions failed in { self.hurlfile }\n" + stderr.replace("|", "\u2758"),
             )
         else:
             self.check.exit(severity, "All assertions ok")
